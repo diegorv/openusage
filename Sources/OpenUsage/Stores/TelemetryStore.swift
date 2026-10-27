@@ -41,11 +41,10 @@ final class TelemetryStore {
         return minted
     }
 
-    /// Whether optional usage analytics are enabled (provider rollups and error categories).
-    /// Defaults to `true` when the user has never chosen. Existing opt-outs stay stored here; the
-    /// daily active ping and crash reports do not read this flag.
+    /// Whether telemetry is enabled (daily ping, crash reports, provider rollups and error categories).
+    /// Defaults to `false` when the user has never chosen.
     var enabled: Bool {
-        get { defaults.bool(forKey: Self.enabledKey, default: true) }
+        get { defaults.bool(forKey: Self.enabledKey, default: false) }
         set { defaults.set(newValue, forKey: Self.enabledKey) }
     }
 

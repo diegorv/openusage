@@ -22,7 +22,7 @@ final class AppContainer {
     /// Quota pace notification preferences (three independent triggers). Drives the Settings section
     /// and is read by `WidgetDataStore.evaluateNotifications`.
     let notificationSettings: NotificationSettingsStore
-    /// Anonymous usage telemetry (mandatory daily activity and crashes, optional provider rollups).
+    /// Anonymous usage telemetry (daily activity, crashes, provider rollups), off unless the user opts in.
     /// Exposed so Settings can toggle extra analytics and termination can flush queued events.
     let telemetry: TelemetryRecorder
     /// Source of truth for the popover's transparency: the persisted Increase Transparency toggle, the
@@ -151,7 +151,7 @@ final class AppContainer {
         }
         self.resetClaims = resetClaims
 
-        // Anonymous usage telemetry (mandatory daily activity and crashes, optional provider rollups).
+        // Anonymous usage telemetry (daily activity, crashes, provider rollups), off unless the user opts in.
         // Its state lives in a dedicated UserDefaults suite, kept separate from app settings so the user's
         // optional-analytics choice and the install id stay independent of any settings change. The
         // snapshot closure reads the live layout/enablement so `app_daily_active` always reflects

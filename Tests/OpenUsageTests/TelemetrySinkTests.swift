@@ -1,16 +1,10 @@
 import XCTest
 @testable import OpenUsage
 
-/// Crash reporting remains mandatory even when optional provider analytics are disabled.
+/// Crash reporting follows the telemetry toggle.
 final class TelemetrySinkTests: XCTestCase {
-    func testErrorAutocaptureStaysEnabledRegardlessOfOptionalAnalytics() {
-        XCTAssertTrue(
-            PostHogTelemetrySink.errorAutocaptureEnabled(optionalAnalyticsEnabled: true),
-            "crash autocapture must stay on when optional analytics are enabled"
-        )
-        XCTAssertTrue(
-            PostHogTelemetrySink.errorAutocaptureEnabled(optionalAnalyticsEnabled: false),
-            "crash autocapture must stay on when optional analytics are disabled"
-        )
+    func testErrorAutocaptureFollowsTelemetryToggle() {
+        XCTAssertTrue(PostHogTelemetrySink.errorAutocaptureEnabled(optionalAnalyticsEnabled: true))
+        XCTAssertFalse(PostHogTelemetrySink.errorAutocaptureEnabled(optionalAnalyticsEnabled: false))
     }
 }

@@ -14,10 +14,10 @@ struct TelemetryConfigSnapshot: Sendable {
 /// without flooding the pipeline from the 5-minute refresh timer (~1,440 outcomes/user/day).
 ///
 /// - `app_daily_active`: emitted once per local day (DAU + the config snapshot), driven by `tick()`.
-///   This ping is always sent — the Settings toggle does not gate it.
+///   Gated on the Settings toggle, like everything else.
 /// - `provider_refresh_daily`: one per provider per day, accumulated in the persisted store and emitted
 ///   when the day rolls over (so counts are complete and survive app restarts within a day). Gated on
-///   the optional-analytics toggle. Crash reporting is handled separately and always remains enabled.
+///   the Settings toggle. Crash reporting is handled by the sink and follows the same toggle.
 @MainActor
 final class TelemetryRecorder {
     private let sink: TelemetrySink
@@ -41,7 +41,7 @@ final class TelemetryRecorder {
     /// Independent of the mandatory daily ping and crash reports.
     var isEnabled: Bool { store.enabled }
 
-    /// Toggle optional provider analytics without stopping daily activity or crash reporting.
+    /// Toggle all telemetry (daily activity, crash reporting, provider rollups).
     func setEnabled(_ enabled: Bool) {
         guard store.enabled != enabled else { return }
         store.enabled = enabled
@@ -49,14 +49,12 @@ final class TelemetryRecorder {
         AppLog.info(.config, "optional analytics \(enabled ? "enabled" : "disabled") by user")
     }
 
-    /// Run on every refresh pass (launch + each interval): flush any provider counters left over from a
-    /// previous day (only while optional analytics are on), then emit `app_daily_active` once per local
-    /// day regardless of the analytics toggle.
+    /// Run on every refresh pass (launch + each interval), only while telemetry is on: flush any provider
+    /// counters left over from a previous day, then emit `app_daily_active` once per local day.
     func tick() {
+        guard store.enabled else { return }
         let today = Self.dayString(now())
-        if store.enabled {
-            flushStaleCounters(today: today)
-        }
+        flushStaleCounters(today: today)
         if store.activeDay != today {
             store.activeDay = today
             emitDailyActive()

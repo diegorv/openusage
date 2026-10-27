@@ -4,7 +4,7 @@ import XCTest
 /// Covers the daily-rollup/dedup contract of `TelemetryRecorder`: the 5-minute refresh timer produces
 /// ~1,440 outcomes/user/day, so the recorder must collapse them into at most one event per provider
 /// per day (and one `app_daily_active` per day), drop cache/skip/backoff noise, classify errors, and
-/// keep the daily ping when optional analytics are off.
+/// send nothing at all while telemetry is off (the default).
 @MainActor
 final class TelemetryRecorderTests: XCTestCase {
     /// Records captured events without touching PostHog.
@@ -69,34 +69,41 @@ final class TelemetryRecorderTests: XCTestCase {
         XCTAssertEqual(props["unexpected_failure_count"] as? Int, 1)
     }
 
-    func testDailyActiveEmitsOncePerDayRegardlessOfAnalyticsOptOut() {
-        for analyticsEnabled in [true, false] {
-            let sink = FakeSink()
-            let store = makeStore("daily-active-\(analyticsEnabled)")
-            var clock = day(25)
-            let recorder = TelemetryRecorder(sink: sink, store: store, snapshot: { self.snapshot }, now: { clock })
+    func testDailyActiveEmitsOncePerDayWhenEnabled() {
+        let sink = FakeSink()
+        let store = makeStore("daily-active")
+        var clock = day(25)
+        let recorder = TelemetryRecorder(sink: sink, store: store, snapshot: { self.snapshot }, now: { clock })
 
-            if !analyticsEnabled {
-                recorder.setEnabled(false)
-                XCTAssertEqual(sink.enabledCalls, [false])
-                XCTAssertFalse(store.enabled, "optional-analytics opt-out must persist")
-            }
+        recorder.tick()
+        recorder.tick()
 
-            recorder.tick()
-            recorder.tick()
+        let active = sink.events(named: "app_daily_active")
+        XCTAssertEqual(active.count, 1)
+        XCTAssertEqual(active[0]["install_id"] as? String, store.installID)
+        XCTAssertEqual(active[0]["enabled_providers"] as? [String], ["claude", "codex"])
+        XCTAssertEqual(active[0]["pinned_metric_ids"] as? [String], ["claude.session"])
+        XCTAssertEqual(active[0]["expanded_metric_ids"] as? [String], ["codex.weekly"])
+        XCTAssertEqual(active[0]["menu_bar_style"] as? String, "text")
 
-            let active = sink.events(named: "app_daily_active")
-            XCTAssertEqual(active.count, 1)
-            XCTAssertEqual(active[0]["install_id"] as? String, store.installID)
-            XCTAssertEqual(active[0]["enabled_providers"] as? [String], ["claude", "codex"])
-            XCTAssertEqual(active[0]["pinned_metric_ids"] as? [String], ["claude.session"])
-            XCTAssertEqual(active[0]["expanded_metric_ids"] as? [String], ["codex.weekly"])
-            XCTAssertEqual(active[0]["menu_bar_style"] as? String, "text")
+        clock = day(26)
+        recorder.tick()
+        XCTAssertEqual(sink.events(named: "app_daily_active").count, 2)
+    }
 
-            clock = day(26)
-            recorder.tick()
-            XCTAssertEqual(sink.events(named: "app_daily_active").count, 2)
-        }
+    func testTelemetryIsOffByDefaultAndSendsNothing() {
+        let store = TelemetryStore(defaults: makeDefaults("default-off"))
+        XCTAssertFalse(store.enabled, "telemetry must default to off")
+
+        let sink = FakeSink()
+        var clock = day(25)
+        let recorder = TelemetryRecorder(sink: sink, store: store, snapshot: { self.snapshot }, now: { clock })
+        recorder.tick()
+        recorder.record(providerID: "claude", outcome: .refreshed, category: nil, manual: false)
+        clock = day(26)
+        recorder.tick()
+
+        XCTAssertTrue(sink.events.isEmpty, "nothing may be sent while telemetry is off")
     }
 
     func testTickFlushesStalePriorDayCounterEvenWithoutNewOutcomes() {
@@ -135,11 +142,7 @@ final class TelemetryRecorderTests: XCTestCase {
             sink.events(named: "provider_refresh_daily").isEmpty,
             "provider rollups must not emit while analytics are off"
         )
-        XCTAssertEqual(
-            sink.events.map(\.name).filter { $0 != "app_daily_active" },
-            [],
-            "the recorder must not emit optional analytics while disabled"
-        )
+        XCTAssertTrue(sink.events.isEmpty, "the recorder must not emit anything while disabled")
         XCTAssertFalse(store.enabled, "optional-analytics opt-out must persist")
     }
 
@@ -153,8 +156,7 @@ final class TelemetryRecorderTests: XCTestCase {
         let recorder = TelemetryRecorder(sink: sink, store: store, snapshot: { self.snapshot }, now: { self.day(25) })
         XCTAssertFalse(recorder.isEnabled)
         recorder.tick()
-        XCTAssertEqual(sink.events(named: "app_daily_active").count, 1)
-        XCTAssertTrue(sink.events(named: "provider_refresh_daily").isEmpty)
+        XCTAssertTrue(sink.events.isEmpty)
         XCTAssertFalse(store.enabled)
     }
 
@@ -175,8 +177,11 @@ final class TelemetryRecorderTests: XCTestCase {
         return Calendar.current.date(from: c)!
     }
 
+    /// A store with telemetry turned on, for tests of the emitting paths.
     private func makeStore(_ name: String) -> TelemetryStore {
-        TelemetryStore(defaults: makeDefaults(name))
+        let store = TelemetryStore(defaults: makeDefaults(name))
+        store.enabled = true
+        return store
     }
 
     private func makeDefaults(_ name: String) -> UserDefaults {
