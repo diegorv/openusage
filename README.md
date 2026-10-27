@@ -8,6 +8,14 @@ OpenUsage shows how much of your AI coding plans you've used: session and weekly
   <img src="assets/screenshot.jpg?v=20260706" alt="OpenUsage menu bar tracker showing Claude and Codex session, weekly, and spend usage" width="900">
 </p>
 
+## About This Fork
+
+A personal fork of [robinebers/openusage](https://github.com/robinebers/openusage). It differs from upstream in:
+
+- **Telemetry is off by default.** Nothing is sent to PostHog, including the daily activity ping and crash reports, until you turn on **Settings → Privacy → Help Make OpenUsage Better**. With it off, the analytics SDK is never started. See [Privacy & usage data](docs/privacy.md).
+- **Menu bar tweaks.** Larger text, a five-segment gauge beside each value, and a **Bar Colors** setting (Monochrome, Alerts Only, Provider Colors, or Custom). See [Menu bar](docs/menu-bar.md).
+- **No auto-update.** Build from source with `./script/build_and_run.sh`; local builds never check for updates.
+
 ## Installation
 
 **Homebrew:**
