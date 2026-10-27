@@ -70,7 +70,8 @@ final class StatusItemImageUpdater {
             groups: container.layout.pinnedGroups,
             data: { container.dataStore.data(for: $0) }
         )
-        return MenuBarStripRenderer.image(for: content, style: container.layout.menuBarStyle)
+        let colors = GaugeColors(mode: container.layout.menuBarBarColors, custom: container.layout.menuBarCustomColor)
+        return MenuBarStripRenderer.image(for: content, style: container.layout.menuBarStyle, colors: colors)
             ?? MenuBarIcon.image
             ?? MenuBarStripRenderer.fallbackIcon
     }

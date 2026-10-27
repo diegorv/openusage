@@ -102,6 +102,16 @@ final class LayoutStore {
         didSet { persistence.saveMenuBarStyle(menuBarStyle) }
     }
 
+    /// Coloring of the Text strip's segmented gauges. Persisted; defaults to `.monochrome`.
+    var menuBarBarColors: MenuBarBarColors {
+        didSet { persistence.saveMenuBarBarColors(menuBarBarColors) }
+    }
+
+    /// The gauge color for `.custom`, as 0xRRGGBB. Persisted.
+    var menuBarCustomColor: UInt32 {
+        didSet { persistence.saveMenuBarCustomColor(menuBarCustomColor) }
+    }
+
     let registry: WidgetRegistry
     private let persistence: LayoutPersistence
     private let defaultMetricIDs: [String]
@@ -146,6 +156,8 @@ final class LayoutStore {
         expandedProviderIDs = initial.expandedProviderIDs
         defaultExpandedOnEnableIDs = initial.defaultExpandedOnEnableIDs
         menuBarStyle = initial.menuBarStyle
+        menuBarBarColors = persistence.loadMenuBarBarColors()
+        menuBarCustomColor = persistence.loadMenuBarCustomColor()
 
         if initial.shouldPersistExpandOnEnable { persistExpandOnEnable() }
         if initial.shouldPersistExpanded { persistExpanded() }

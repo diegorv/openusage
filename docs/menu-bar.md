@@ -21,6 +21,15 @@ Settings → Appearance → Icon Style:
 - **Text** — provider icon plus values; two starred metrics from the same provider stack as a labeled pair.
 - **Bars** — a compact glyph containing the first four starred metrics that have a limit (metrics without limits only appear in Text style).
 
+In Text style, every value with a limit gets a small five-segment gauge beside it (each segment is
+20%; any usage lights at least one). **Settings → Appearance → Bar Colors** picks how the gauges are
+colored:
+
+- **Monochrome** (default) — follows the menu bar's light/dark tint, like the rest of the strip.
+- **Alerts Only** — monochrome until a metric reaches 80% used (amber) or 95% used (red).
+- **Provider Colors** — each provider's brand color, with the same amber/red alerts.
+- **Custom** — one color of your choice (**Bar Color**), with the same amber/red alerts.
+
 ## Hiding usage while screen sharing
 
 Settings → Privacy → **Hide From Screen Share** (off by default). While your screen is being shared or recorded — a Zoom/Meet/Teams share, a screen recording, macOS Screen Sharing — the strip is replaced with the OpenUsage icon and wordmark, so token counts and spend never show up in front of an audience. The moment the capture ends, your starred metrics come right back. Captures you start yourself (a screen recording, for example) count too, so those get the wordmark as well.

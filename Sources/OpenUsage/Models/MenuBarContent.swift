@@ -11,6 +11,7 @@ struct MenuBarContent: Equatable {
         let label: String       // metric label, e.g. "Session" (shown when a provider has two metrics)
         let value: String       // tray display: a "%" for bounded metrics, the raw value (e.g. "$5.23") for unbounded, or the no-data marker
         let fraction: Double     // 0...1 fill, meaningful for bounded metrics (drives the bars)
+        var usedFraction: Double = 0 // 0...1 used share, whatever the used/left display mode (drives gauge alerts)
         let isBounded: Bool      // has a limit → has a fill, so it can render as a bar
         let hasData: Bool
     }
@@ -84,6 +85,7 @@ enum MenuBarContentBuilder {
             label: trayLabel(descriptor.metricLabel),
             value: data.menuBarValue,
             fraction: data.fraction,
+            usedFraction: 1 - data.remainingFraction,
             isBounded: data.isBounded,
             hasData: data.hasData
         )

@@ -29,6 +29,12 @@ final class LayoutPersistence {
     func loadExpandOnEnable() -> [String]? { defaults.stringArray(forKey: keys.expandOnEnable) }
     func loadExpandedProviders() -> [String]? { defaults.stringArray(forKey: keys.expandedProviders) }
     func loadMenuBarStyle() -> MenuBarStyle { defaults.enumValue(forKey: keys.menuBarStyle, default: .text) }
+    func loadMenuBarBarColors() -> MenuBarBarColors {
+        defaults.enumValue(forKey: keys.menuBarBarColors, default: .monochrome)
+    }
+    func loadMenuBarCustomColor() -> UInt32 {
+        (defaults.object(forKey: keys.menuBarCustomColor) as? NSNumber)?.uint32Value ?? 0x6B7FE0
+    }
 
     func savePlaced(_ value: [PlacedWidget]) { encode(value, forKey: keys.placed) }
     func saveProviderOrder(_ value: [String]) { encode(value, forKey: keys.providerOrder) }
@@ -49,6 +55,12 @@ final class LayoutPersistence {
     }
     func saveMenuBarStyle(_ value: MenuBarStyle) {
         defaults.set(value.rawValue, forKey: keys.menuBarStyle)
+    }
+    func saveMenuBarBarColors(_ value: MenuBarBarColors) {
+        defaults.set(value.rawValue, forKey: keys.menuBarBarColors)
+    }
+    func saveMenuBarCustomColor(_ value: UInt32) {
+        defaults.set(NSNumber(value: value), forKey: keys.menuBarCustomColor)
     }
 
     /// Fail loudly: a swallowed encode would silently lose a layout change with no signal.
@@ -82,6 +94,8 @@ final class LayoutPersistence {
         let expandOnEnable: String
         let expandedProviders: String
         let menuBarStyle: String
+        let menuBarBarColors: String
+        let menuBarCustomColor: String
 
         init(storageKey: String) {
             placed = storageKey
@@ -93,6 +107,8 @@ final class LayoutPersistence {
             expandOnEnable = "\(storageKey).expandOnEnable"
             expandedProviders = "\(storageKey).expandedProviders"
             menuBarStyle = "\(storageKey).menuBarStyle"
+            menuBarBarColors = "\(storageKey).menuBarBarColors"
+            menuBarCustomColor = "\(storageKey).menuBarCustomColor"
         }
     }
 }

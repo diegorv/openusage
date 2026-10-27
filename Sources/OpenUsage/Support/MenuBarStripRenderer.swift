@@ -12,23 +12,62 @@ enum MenuBarStripRenderer {
     /// Returning the same `NSImage` instance lets `StatusItemImageUpdater` skip the status-item set
     /// (an unconditional set still costs a WindowServer redraw), and keeps `ImageRenderer` (which
     /// retains a little memory per run on macOS) to actual visual changes.
-    private static var lastRender: (content: MenuBarContent, style: MenuBarStyle, image: NSImage?)?
+    private static var lastRender: (content: MenuBarContent, style: MenuBarStyle, colors: GaugeColors, image: NSImage?)?
 
     /// The strip image for the given content and style, or `nil` when the content renders nothing
     /// in that style (caller falls back to the app icon). Memoized: equal inputs return the
     /// previously rendered instance.
-    static func image(for content: MenuBarContent, style: MenuBarStyle) -> NSImage? {
-        if let lastRender, lastRender.content == content, lastRender.style == style {
+    static func image(
+        for content: MenuBarContent,
+        style: MenuBarStyle,
+        colors: GaugeColors = GaugeColors(mode: .monochrome, custom: 0)
+    ) -> NSImage? {
+        if let lastRender, lastRender.content == content, lastRender.style == style, lastRender.colors == colors {
             AppLog.debug(.menubar, "strip cache hit")
             return lastRender.image
         }
         AppLog.debug(.menubar, "strip cache miss (rendering)")
         let image: NSImage?
         switch style {
-        case .text: image = textImage(for: content)
+        case .text:
+            image = colors.mode == .monochrome
+                ? textImage(for: content)
+                : coloredTextImage(for: content, colors: colors)
         case .bars: image = barsImage(for: content)
         }
-        lastRender = (content, style, image)
+        lastRender = (content, style, colors, image)
+        return image
+    }
+
+    /// The Text strip with colored gauges. A template image can't carry color, so the strip renders
+    /// twice with the same layout: a black mask (text, glyphs, unlit segments) filled with the label
+    /// color at draw time — so it still follows the menu bar's light/dark appearance — and the lit
+    /// segments in color on top.
+    static func coloredTextImage(for content: MenuBarContent, colors: GaugeColors) -> NSImage? {
+        guard !content.isEmpty else { return nil }
+        let maskRenderer = ImageRenderer(content: MenuBarTextStrip(content: content, layer: .mask(colors)))
+        let colorRenderer = ImageRenderer(content: MenuBarTextStrip(content: content, layer: .color(colors)))
+        maskRenderer.scale = 2
+        colorRenderer.scale = 2
+        guard let mask = maskRenderer.cgImage, let color = colorRenderer.cgImage else { return nil }
+        let full = CGRect(x: 0, y: 0, width: mask.width, height: mask.height)
+        let bounds = (visibleBounds(of: mask) ?? full).union(visibleBounds(of: color) ?? full)
+        guard let trimmedMask = mask.cropping(to: bounds), let trimmedColor = color.cropping(to: bounds) else {
+            return nil
+        }
+        let size = NSSize(width: bounds.width / maskRenderer.scale, height: bounds.height / maskRenderer.scale)
+        let image = NSImage(size: size, flipped: false) { rect in
+            guard let context = NSGraphicsContext.current?.cgContext else { return false }
+            context.saveGState()
+            context.clip(to: rect, mask: trimmedMask)
+            NSColor.labelColor.setFill()
+            rect.fill()
+            context.restoreGState()
+            context.draw(trimmedColor, in: rect)
+            return true
+        }
+        image.isTemplate = false
+        image.accessibilityDescription = content.accessibilityText
         return image
     }
 
@@ -153,19 +192,58 @@ private struct MenuBarPrivacyLabel: View {
     }
 }
 
+/// The gauge coloring the Text strip renders with: the chosen mode plus the `.custom` color.
+struct GaugeColors: Equatable {
+    let mode: MenuBarBarColors
+    let custom: UInt32
+
+    /// The lit-segment color for a metric, or `nil` for the template black.
+    func color(for metric: MenuBarContent.Metric, providerID: String) -> Color? {
+        if mode == .monochrome { return nil }
+        if metric.usedFraction >= 0.95 { return Color(red: 224 / 255, green: 80 / 255, blue: 80 / 255) }
+        if metric.usedFraction >= 0.80 { return Color(red: 224 / 255, green: 160 / 255, blue: 48 / 255) }
+        switch mode {
+        case .monochrome, .alertsOnly: return nil
+        case .provider: return TotalSpendPalette.color(for: providerID)
+        case .custom:
+            return Color(
+                red: Double((custom >> 16) & 0xFF) / 255,
+                green: Double((custom >> 8) & 0xFF) / 255,
+                blue: Double(custom & 0xFF) / 255
+            )
+        }
+    }
+}
+
+/// Which pass of the strip to draw. `.template` is the single monochrome render; a colored strip
+/// draws `.mask` (everything but colored lit segments, black) and `.color` (only those segments).
+private enum StripLayer {
+    case template
+    case mask(GaugeColors)
+    case color(GaugeColors)
+}
+
 private struct MenuBarTextStrip: View {
     let content: MenuBarContent
+    var layer: StripLayer = .template
+
+    /// Black for template and mask passes; clear in the color pass, which keeps the layout but draws
+    /// only the colored segments.
+    private var ink: Color {
+        if case .color = layer { return .clear }
+        return .black
+    }
 
     var body: some View {
         HStack(spacing: 11) {
             ForEach(content.groups, id: \.providerID) { group in
                 HStack(spacing: 4) {
                     glyph(group.icon)
-                    metricsView(group.metrics)
+                    metricsView(group.metrics, providerID: group.providerID)
                 }
             }
         }
-        .foregroundStyle(.black)
+        .foregroundStyle(ink)
         .padding(.horizontal, 2)
         .padding(.vertical, 1)
         .fixedSize()
@@ -174,19 +252,19 @@ private struct MenuBarTextStrip: View {
     /// A provider's pinned values, no labels: one metric as a single large number, two stacked on two
     /// tight lines (much narrower than side-by-side), read positionally.
     @ViewBuilder
-    private func metricsView(_ metrics: [MenuBarContent.Metric]) -> some View {
+    private func metricsView(_ metrics: [MenuBarContent.Metric], providerID: String) -> some View {
         if metrics.count <= 1 {
             HStack(spacing: 3) {
                 Text(metrics.first?.value ?? "")
                     .font(.system(size: 13, weight: .semibold))
-                if let metric = metrics.first { segments(metric, height: 10) }
+                if let metric = metrics.first { segments(metric, providerID: providerID, height: 10) }
             }
         } else {
             VStack(alignment: .trailing, spacing: -2) {
                 ForEach(metrics, id: \.id) { metric in
                     HStack(spacing: 3) {
                         Text(metric.value)
-                        segments(metric, height: 7)
+                        segments(metric, providerID: providerID, height: 7)
                     }
                 }
             }
@@ -198,17 +276,30 @@ private struct MenuBarTextStrip: View {
     /// A five-segment gauge beside a bounded value: anything above zero lights at least one segment,
     /// so a barely-used window never reads as idle.
     @ViewBuilder
-    private func segments(_ metric: MenuBarContent.Metric, height: CGFloat) -> some View {
+    private func segments(_ metric: MenuBarContent.Metric, providerID: String, height: CGFloat) -> some View {
         if metric.isBounded, metric.hasData {
             let clamped = min(max(metric.fraction, 0), 1)
             let lit = clamped <= 0 ? 0 : max(1, Int((clamped * 5).rounded()))
             HStack(spacing: 1) {
                 ForEach(0..<5, id: \.self) { index in
                     Rectangle()
-                        .fill(Color.black.opacity(index < lit ? 1 : 0.3))
+                        .fill(segmentFill(lit: index < lit, metric: metric, providerID: providerID))
                         .frame(width: 4, height: height)
                 }
             }
+        }
+    }
+
+    private func segmentFill(lit: Bool, metric: MenuBarContent.Metric, providerID: String) -> Color {
+        switch layer {
+        case .template:
+            return Color.black.opacity(lit ? 1 : 0.3)
+        case .mask(let colors):
+            if lit, colors.color(for: metric, providerID: providerID) != nil { return .clear }
+            return Color.black.opacity(lit ? 1 : 0.3)
+        case .color(let colors):
+            guard lit, let color = colors.color(for: metric, providerID: providerID) else { return .clear }
+            return color
         }
     }
 
@@ -222,10 +313,10 @@ private struct MenuBarTextStrip: View {
     private func glyph(_ icon: IconSource) -> some View {
         if let mark = ProviderMarks.mark(for: icon.providerID) {
             ProviderIconShape(mark: mark, inset: 0.04)
-                .fill(Color.black)
+                .fill(ink)
                 .frame(width: Self.glyphSide, height: Self.glyphSide)
         } else {
-            Circle().fill(Color.black).frame(width: Self.glyphSide - 1, height: Self.glyphSide - 1)
+            Circle().fill(ink).frame(width: Self.glyphSide - 1, height: Self.glyphSide - 1)
         }
     }
 }

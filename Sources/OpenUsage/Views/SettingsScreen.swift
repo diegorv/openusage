@@ -125,6 +125,17 @@ struct SettingsScreen: View {
             row("Icon Style") {
                 picker($layout.menuBarStyle, options: MenuBarStyle.allCases, label: \.label)
             }
+            if layout.menuBarStyle == .text {
+                row("Bar Colors") {
+                    picker($layout.menuBarBarColors, options: MenuBarBarColors.allCases, label: \.label)
+                }
+                if layout.menuBarBarColors == .custom {
+                    row("Bar Color") {
+                        ColorPicker("", selection: customColorBinding(layout), supportsOpacity: false)
+                            .labelsHidden()
+                    }
+                }
+            }
             row("Theme") {
                 picker($appearance, options: AppearanceSetting.allCases, label: \.label)
                     // NSApp-level so the popover panel restyles too (it ignores preferredColorScheme).
@@ -513,6 +524,27 @@ struct SettingsScreen: View {
             .padding(.horizontal, 12)
             .padding(.bottom, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Bridges the stored 0xRRGGBB custom gauge color to the SwiftUI color picker.
+    private func customColorBinding(_ layout: LayoutStore) -> Binding<Color> {
+        Binding(
+            get: {
+                let value = layout.menuBarCustomColor
+                return Color(
+                    red: Double((value >> 16) & 0xFF) / 255,
+                    green: Double((value >> 8) & 0xFF) / 255,
+                    blue: Double(value & 0xFF) / 255
+                )
+            },
+            set: { color in
+                guard let rgb = NSColor(color).usingColorSpace(.sRGB) else { return }
+                let r = UInt32((rgb.redComponent * 255).rounded()) & 0xFF
+                let g = UInt32((rgb.greenComponent * 255).rounded()) & 0xFF
+                let b = UInt32((rgb.blueComponent * 255).rounded()) & 0xFF
+                layout.menuBarCustomColor = (r << 16) | (g << 8) | b
+            }
+        )
     }
 
     /// A trailing popup picker that hugs its selection — segmented controls don't fit the 320pt
