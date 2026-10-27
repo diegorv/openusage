@@ -1,0 +1,44 @@
+{
+  "configurations": [
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:openusage}",
+      "name": "Debug OpenUsage",
+      "target": "OpenUsage",
+      "configuration": "debug",
+      "preLaunchTask": "swift: Build Debug OpenUsage"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:openusage}",
+      "name": "Release OpenUsage",
+      "target": "OpenUsage",
+      "configuration": "release",
+      "preLaunchTask": "swift: Build Release OpenUsage"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:openusage}",
+      "name": "Debug openusage-cli",
+      "target": "openusage-cli",
+      "configuration": "debug",
+      "preLaunchTask": "swift: Build Debug openusage-cli"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:openusage}",
+      "name": "Release openusage-cli",
+      "target": "openusage-cli",
+      "configuration": "release",
+      "preLaunchTask": "swift: Build Release openusage-cli"
+    }
+  ]
+}
