@@ -176,16 +176,39 @@ private struct MenuBarTextStrip: View {
     @ViewBuilder
     private func metricsView(_ metrics: [MenuBarContent.Metric]) -> some View {
         if metrics.count <= 1 {
-            Text(metrics.first?.value ?? "")
-                .font(.system(size: 14, weight: .bold))
+            HStack(spacing: 3) {
+                Text(metrics.first?.value ?? "")
+                    .font(.system(size: 13, weight: .semibold))
+                if let metric = metrics.first { segments(metric, height: 10) }
+            }
         } else {
             VStack(alignment: .trailing, spacing: -2) {
                 ForEach(metrics, id: \.id) { metric in
-                    Text(metric.value)
+                    HStack(spacing: 3) {
+                        Text(metric.value)
+                        segments(metric, height: 7)
+                    }
                 }
             }
-            .font(.system(size: 11, weight: .bold))
+            .font(.system(size: 10, weight: .semibold))
             .fixedSize()
+        }
+    }
+
+    /// A five-segment gauge beside a bounded value: anything above zero lights at least one segment,
+    /// so a barely-used window never reads as idle.
+    @ViewBuilder
+    private func segments(_ metric: MenuBarContent.Metric, height: CGFloat) -> some View {
+        if metric.isBounded, metric.hasData {
+            let clamped = min(max(metric.fraction, 0), 1)
+            let lit = clamped <= 0 ? 0 : max(1, Int((clamped * 5).rounded()))
+            HStack(spacing: 1) {
+                ForEach(0..<5, id: \.self) { index in
+                    Rectangle()
+                        .fill(Color.black.opacity(index < lit ? 1 : 0.3))
+                        .frame(width: 4, height: height)
+                }
+            }
         }
     }
 
