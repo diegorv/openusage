@@ -166,7 +166,6 @@ private struct MenuBarTextStrip: View {
             }
         }
         .foregroundStyle(.black)
-        .monospacedDigit()
         .padding(.horizontal, 2)
         .padding(.vertical, 1)
         .fixedSize()
@@ -178,14 +177,14 @@ private struct MenuBarTextStrip: View {
     private func metricsView(_ metrics: [MenuBarContent.Metric]) -> some View {
         if metrics.count <= 1 {
             Text(metrics.first?.value ?? "")
-                .font(.system(size: 12, weight: .bold))
+                .font(.system(size: 14, weight: .bold))
         } else {
             VStack(alignment: .trailing, spacing: -2) {
                 ForEach(metrics, id: \.id) { metric in
                     Text(metric.value)
                 }
             }
-            .font(.system(size: 9, weight: .semibold))
+            .font(.system(size: 11, weight: .bold))
             .fixedSize()
         }
     }
